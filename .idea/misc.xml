@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Black">
+    <option name="sdkName" value="audio_dataset" />
+  </component>
+  <component name="ProjectRootManager" version="2" project-jdk-name="/media/spyridod/f18b45da-5831-4391-9204-956dde8d33af/envs/cleaned2" project-jdk-type="Python SDK" />
+</project>
