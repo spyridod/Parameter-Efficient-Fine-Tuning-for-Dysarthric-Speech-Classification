@@ -23,7 +23,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from tqdm import tqdm
-from sklearn.metrics import confusion_matrix, classification_report, roc_curve, auc
+from sklearn.metrics import confusion_matrix, classification_report, roc_curve, auc, roc_auc_score
 import librosa
 from transformers import Wav2Vec2Processor, HubertConfig, HubertForSequenceClassification
 from torch.utils.data import Dataset, DataLoader

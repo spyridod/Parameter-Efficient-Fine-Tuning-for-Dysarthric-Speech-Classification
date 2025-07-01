@@ -89,11 +89,10 @@ def main():
     unique_combinations = [list(combo) for combo in all_possible_combinations if len(set(combo)) == 4]
 
     # Here for checkpointing
-    # Use combinations starting from index 21 (for some experimental reason)
-    test_speakers_combinations = unique_combinations[21:]
+    test_speakers_combinations = unique_combinations[22:]
 
 
-    test_speakers_combinations = unique_combinations
+    #test_speakers_combinations = unique_combinations
 
     # Train model for each speaker combination
     for i, test_speakers in enumerate(test_speakers_combinations):
@@ -232,11 +231,11 @@ def main():
                 best_accuracy = val_acc
                 best_train_accuracy = train_acc
                 model_name = f"best_hubert_classifier_{'_'.join(sorted(test_speakers))}.pt"
-                torch.save(model.state_dict(), f"{output_dir}/{model_name}")
+                #torch.save(model.state_dict(), f"{output_dir}/{model_name}")
                 best_epoch = epoch
 
         # Save final model and training summary
-        torch.save(model.state_dict(), f"{output_dir}/final_model.pt")
+        #torch.save(model.state_dict(), f"{output_dir}/final_model.pt")
         with open(f"{output_dir}/training_summary.txt", "w") as f:
             f.write(f"Best validation accuracy: {best_accuracy * 100:.2f}%\n")
             f.write(f"Test speakers: {test_speakers}\n")
