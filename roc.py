@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 """
-Evaluation script for Hubert-based speech prominence classification models.
-
-This script:
 1. Processes multiple experiment folders containing trained models
 2. Evaluates each model on its corresponding test set
 3. Generates comprehensive metrics including accuracy, confusion matrices, ROC curves
@@ -30,7 +27,7 @@ from torch.utils.data import Dataset, DataLoader
 from dataclasses import dataclass
 from typing import List, Dict, Union, Optional
 from scipy.stats import norm
-
+import torch.nn as nn
 
 # ======================== Helper Functions ========================
 
@@ -40,7 +37,7 @@ def roc_auc_ci(y_true, y_score, positive=1):
 
     Args:
         y_true: True binary labels
-        y_score: Target scores (probability estimates of the positive class)
+        y_score: Target scores
         positive: Label of the positive class (default=1)
 
     Returns:
@@ -116,23 +113,22 @@ def plot_confusion_matrix(cm, class_names, output_path):
 
 def save_scores_labels(y_scores, y_true, output_path):
     """
-    Save prediction scores and true labels in multiple formats.
+    Save prediction scores and true labels
 
     Args:
         y_scores: Model prediction scores
         y_true: True labels
-        output_path: Base path for saving files (.npz and .csv will be created)
+        output_path: Base path for saving files
     """
-    # Save as .npz for MATLAB compatibility
     np.savez(output_path, scores=y_scores, labels=y_true)
 
-    # Save as CSV for human readability
+    # Save as CSV for readability
     scores_df = pd.DataFrame(y_scores, columns=[f"class_{i}" for i in range(y_scores.shape[1])])
     scores_df['true_label'] = y_true
     scores_df.to_csv(output_path.replace('.npz', '.csv'), index=False)
 
 
-# ======================== Core Evaluation Functions ========================
+# ======================== Evaluation Functions ========================
 
 def calculate_roc_curve(y_scores, y_true):
     """
@@ -323,7 +319,7 @@ class DataCollatorCTCWithPadding:
 
 
 class HubertDataset(Dataset):
-    """Dataset class for Hubert prominence classification."""
+    """Dataset class for Hubert"""
 
     def __init__(self, df, processor):
         self.df = df
@@ -379,41 +375,62 @@ class HubertDataset(Dataset):
         return inputs.input_values[0]
 
 
-class LoRALayer(torch.nn.Module):
-    """Low-Rank Adaptation (LoRA) layer for efficient fine-tuning."""
+class LoRALayer(nn.Module):
+    """
+    Low-Rank Adaptation layer
+
+    Args:
+        in_dim: Input dimension
+        out_dim: Output dimension
+        rank: Rank of the low-rank matrices
+        alpha: Scaling factor
+        activation: Whether to apply GELU activation (Modified non-linear LoRA)
+    """
 
     def __init__(self, in_dim, out_dim, rank=8, alpha=16, activation=True):
         super().__init__()
         self.rank = rank
-        self.A = torch.nn.Parameter(torch.randn(in_dim, rank))
-        self.B = torch.nn.Parameter(torch.zeros(rank, out_dim))
-        self.scale = alpha / rank
-        self.non_linearity = torch.nn.GELU()
-        self.activation = activation
+        self.A = nn.Parameter(torch.randn(in_dim, rank))  # Low-rank matrix A
+        self.B = nn.Parameter(torch.zeros(rank, out_dim))  # Low-rank matrix B
+        self.scale = alpha / rank  # Scaling factor
+        self.non_linearity = nn.GELU()  # Activation function
+        self.activation = activation  # Whether to use activation (Modified non-linear LoRA)
 
     def forward(self, x):
-        """Forward pass with LoRA adaptation."""
+        """
+        Forward pass: BAx*scale with optional activation
+        B and A are reversed
+        """
         if self.activation:
-            return self.non_linearity((x @ self.A @ self.B)) * self.scale
-        return (x @ self.A @ self.B) * self.scale
+            return self.non_linearity((x @ (self.B.transpose(0,1) @ self.A.transpose(0,1)))) * self.scale
+        else:
+            return (x @ (self.B.transpose(0,1) @ self.A.transpose(0,1))) * self.scale
 
 
-class LinearWithLoRA(torch.nn.Module):
-    """Linear layer with LoRA adaptation."""
+class LinearWithLoRA(nn.Module):
+    """
+    Wrapper that combines a linear layer with a LoRA layer
+
+    Args:
+        linear_layer: Original linear layer to augment
+        rank: Rank of LoRA matrices
+        alpha: Scaling factor
+        activation: Whether LoRA uses activation (LoRA or Modified NL LoRA)
+    """
 
     def __init__(self, linear_layer, rank=8, alpha=16, activation=True):
         super().__init__()
-        self.linear = linear_layer
+        self.linear = linear_layer  # Original linear layer
         self.lora = LoRALayer(
             linear_layer.in_features,
             linear_layer.out_features,
-            rank, alpha, activation=activation
+            rank, alpha,
+            activation=activation
         )
 
     def forward(self, x):
-        """Combine original and adapted weights."""
+        """Forward pass: original output + LoRA output"""
         return self.linear(x) + self.lora(x)
-
 
 # ======================== Model Loading and Evaluation ========================
 
@@ -740,7 +757,7 @@ def process_results_folders(folder1, folder2, output_dir):
 
 if __name__ == "__main__":
     # Set up argument parser
-    parser = argparse.ArgumentParser(description='Evaluate Hubert prominence classification models.')
+    parser = argparse.ArgumentParser(description='Evaluate Hubert classification models.')
     parser.add_argument('--folder1', type=str, required=True,
                         help='Path to first experiment folder containing iteration subfolders')
     parser.add_argument('--folder2', type=str, default='',
